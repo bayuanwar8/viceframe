@@ -17,7 +17,7 @@ function loadImage(src) {
 
 function applyQuery(state, query) {
   const layout = query.get('layout');
-  if (layout && ['hero', 'triptych', 'mosaic', 'split', 'editorial'].includes(layout)) {
+  if (layout && ['hero', 'triptych', 'mosaic', 'split', 'editorial', 'hero-mosaic'].includes(layout)) {
     state.layout = layout;
   }
   const grade = query.get('grade');
@@ -31,6 +31,12 @@ function applyQuery(state, query) {
   if (caption) state.title = caption;
   const subtitle = query.get('subtitle');
   if (subtitle) state.subtitle = subtitle;
+  // Review quote text: quotetext=...&quotesource=... (the `quote` flag below
+  // is the toggle, not the text).
+  const quotetext = query.get('quotetext');
+  if (quotetext) state.quote = quotetext;
+  const quoteSource = query.get('quotesource');
+  if (quoteSource) state.quoteSource = quoteSource;
   // Type style: style=vice-chrome (must be a known style).
   const style = query.get('style');
   if (style && TYPE_STYLES[style]) state.typeStyle = style;
@@ -42,6 +48,8 @@ function applyQuery(state, query) {
   };
   flag('cast', 'castTags'); flag('billing', 'billing'); flag('popout', 'popout');
   flag('seal', 'seal'); flag('slant', 'slant');
+  flag('quote', 'quote'); flag('barcode', 'barcode');
+  flag('stickers', 'stickers'); flag('starburst', 'starburst');
   // Per-panel cast tags: tags=THE ANGLER;THE DRIVER;THE NIGHT OWL.
   // Without it, tags follow each photo's role from the sample map.
   const tags = query.get('tags');

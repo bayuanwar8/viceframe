@@ -61,7 +61,7 @@ async function addPhotoFile(file) {
 }
 
 async function loadSamples() {
-  for (const [name, src] of [['pier.jpg', 'samples/pier.jpg'], ['boulevard.jpg', 'samples/boulevard.jpg'], ['neon.jpg', 'samples/neon.jpg']]) {
+  for (const [name, src] of [['pier.jpg', 'samples/pier.jpg'], ['boulevard.jpg', 'samples/boulevard.jpg'], ['neon.jpg', 'samples/neon.jpg'], ['club.jpg', 'samples/club.jpg'], ['boss.jpg', 'samples/boss.jpg'], ['rider.jpg', 'samples/rider.jpg']]) {
     try {
       const img = await loadImage(src);
       state.photos.push({ id: nextPhotoId++, name, img, src });
@@ -214,6 +214,8 @@ function syncTypeUI() {
   $('inTitle').value = state.title;
   $('inSubtitle').value = state.subtitle;
   $('inSupport').value = state.support;
+  $('inQuote').value = state.quote || '';
+  $('inQuoteSource').value = state.quoteSource || '';
   $('typeSize').value = state.type.sizeScale;
   $('typeAlign').value = state.type.align || 'center';
   $('typeColor').value = state.type.color || '#ffffff';
@@ -227,6 +229,10 @@ function wireTypeUI() {
   $('inSubtitle').addEventListener('change', pushUndo);
   $('inSupport').addEventListener('input', (e) => { state.support = e.target.value; render(); });
   $('inSupport').addEventListener('change', pushUndo);
+  $('inQuote').addEventListener('input', (e) => { state.quote = e.target.value; render(); });
+  $('inQuote').addEventListener('change', pushUndo);
+  $('inQuoteSource').addEventListener('input', (e) => { state.quoteSource = e.target.value; render(); });
+  $('inQuoteSource').addEventListener('change', pushUndo);
   $('typeSize').addEventListener('input', (e) => { state.type.sizeScale = Number(e.target.value); render(); });
   $('typeSize').addEventListener('change', pushUndo);
   $('typeAlign').addEventListener('change', (e) => { pushUndo(); state.type.align = e.target.value; render(); });
@@ -240,6 +246,8 @@ const ELEMENT_LABELS = {
   neon: 'Neon accents', filmFrame: 'Film-frame border', numbering: 'Issue numbering',
   location: 'Location label', castTags: 'Cast role tags', billing: 'Billing block',
   popout: 'Pop-out hero', seal: 'Seal / stamp', slant: 'Slanted panels',
+  quote: 'Review quote strip', barcode: 'Barcode + Coming soon',
+  stickers: 'Location/time stickers', starburst: 'Starburst seal',
 };
 
 // When a panel gets a new photo, its cast tag follows the photo's role.

@@ -120,7 +120,136 @@ export function drawNeonAccents(ctx, w, h) {
   ctx.restore();
 }
 
-// Film-frame border: dark rails top and bottom with sprocket holes.
+// Five-point star, used by the quote strip (gold review stars).
+export function drawStar(ctx, cx, cy, r, fill) {
+  ctx.save();
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const rr = i % 2 === 0 ? r : r * 0.42;
+    const x = cx + Math.cos(a) * rr;
+    const y = cy + Math.sin(a) * rr;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+// Review quote strip: five gold stars + a quote + the paper that printed
+// it, centred on one line at y (top edge). Returns the strip's height.
+export function drawQuoteStrip(ctx, W, H, quote, source, y) {
+  ctx.save();
+  const size = Math.max(12, W * 0.016);
+  const starR = size * 0.62;
+  const gap = size * 0.45;
+  ctx.font = `600 ${size}px Oswald, sans-serif`;
+  const text = `${quote}  —  ${source}`;
+  const textW = ctx.measureText(text).width;
+  const starsW = 5 * starR * 2 + 4 * gap;
+  const totalW = starsW + size * 1.2 + textW;
+  let x = (W - totalW) / 2;
+  const cy = y + size * 0.62;
+  for (let i = 0; i < 5; i++) {
+    drawStar(ctx, x + starR, cy, starR, '#ffd166');
+    x += starR * 2 + gap;
+  }
+  x += size * 1.2 - gap;
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.65)';
+  ctx.shadowBlur = size * 0.3;
+  if ('letterSpacing' in ctx) ctx.letterSpacing = `${(size * 0.14).toFixed(1)}px`;
+  ctx.fillText(text, x, cy);
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+  ctx.restore();
+  return size * 1.5;
+}
+
+// Deterministic pseudo-random bars for the barcode (mulberry32).
+function seededRand(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Movie-poster barcode: a white ticket block with deterministic black bars.
+// x, y = top-left of the white block; w, h = the block's size.
+export function drawBarcode(ctx, x, y, w, h, seed) {
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x, y, w, h);
+  const rand = seededRand(seed || 2026);
+  ctx.fillStyle = '#0d0518';
+  let bx = x + w * 0.04;
+  const endX = x + w * 0.96;
+  while (bx < endX) {
+    const bw = w * (0.008 + rand() * 0.022);
+    if (rand() > 0.42) ctx.fillRect(bx, y + h * 0.08, Math.min(bw, endX - bx), h * 0.84);
+    bx += bw + w * 0.008;
+  }
+  ctx.restore();
+}
+
+// Location/time sticker: a small white tilted sticker with black caps text,
+// e.g. "PIER NINE • 6:40 PM". (x, y) is the sticker's top edge; align
+// 'left' grows it right from x, 'right' grows it left from x.
+export function drawSticker(ctx, x, y, align, text, size) {
+  ctx.save();
+  ctx.font = `600 ${size}px Oswald, sans-serif`;
+  const tw = ctx.measureText(text).width;
+  const padX = size * 0.7;
+  const w = tw + padX * 2;
+  const h = size * 1.9;
+  const px = align === 'right' ? x - w : x;
+  const py = y;
+  ctx.translate(px + w / 2, py + h / 2);
+  ctx.rotate(-0.035);
+  ctx.translate(-w / 2, -h / 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.94)';
+  ctx.shadowColor = 'rgba(0,0,0,0.55)';
+  ctx.shadowBlur = size * 0.4;
+  ctx.shadowOffsetY = size * 0.12;
+  ctx.fillRect(0, 0, w, h);
+  ctx.shadowColor = 'transparent';
+  ctx.fillStyle = '#14081f';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, padX, h / 2 + size * 0.03);
+  ctx.restore();
+}
+
+// Starburst "ORIGINAL COVER ART" seal: a gold 12-spike burst with dark
+// caps text, stamped over a panel corner. Rotated slightly like a sticker.
+export function drawStarburstSeal(ctx, cx, cy, r) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(0.12);
+  ctx.fillStyle = '#ffd166';
+  ctx.strokeStyle = '#8a6d1f';
+  ctx.lineWidth = Math.max(1, r * 0.03);
+  ctx.beginPath();
+  const spikes = 12;
+  for (let i = 0; i < spikes * 2; i++) {
+    const a = (i * Math.PI) / spikes - Math.PI / 2;
+    const rr = i % 2 === 0 ? r : r * 0.78;
+    const x = Math.cos(a) * rr;
+    const y = Math.sin(a) * rr;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#1a0b2e';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const size = r * 0.24;
+  ctx.font = `600 ${size}px Oswald, sans-serif`;
+  ctx.fillText('ORIGINAL', 0, -size * 0.55);
+  ctx.fillText('COVER ART', 0, size * 0.55);
+  drawStar(ctx, 0, -size * 1.35, size * 0.32, '#1a0b2e');
+  ctx.restore();
+}
 export function drawFilmFrame(ctx, w, h) {
   ctx.save();
   const rail = h * 0.045;

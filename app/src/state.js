@@ -14,6 +14,7 @@ export const LAYOUTS = [
   { id: 'mosaic', name: 'Sunset Mosaic', blurb: 'Asymmetric multi-photo' },
   { id: 'split', name: 'Split Cinema', blurb: 'Hero + two supports' },
   { id: 'editorial', name: 'Editorial Collection', blurb: 'Magazine cover grid' },
+  { id: 'hero-mosaic', name: 'Hero Mosaic', blurb: 'Big hero + six panels' },
 ];
 
 // Manual grading values. exposure/contrast/saturation are multipliers around 1;
@@ -77,6 +78,23 @@ export const TYPE_STYLES = {
     shadowBlur: 0.03, spacing: 0.02, lineHeight: 0.92, upper: true,
     chrome: true,
   },
+  // Vice Script: a neon-sign script title (Pacifico) — and when it is the
+  // active style the subtitle is drawn as a neon-pink script line too,
+  // instead of Oswald caps. script: true switches both.
+  'vice-script': {
+    name: 'Vice Script', font: 'Pacifico', weight: 400, color: '#ff9ecf',
+    stroke: '#ffffff', strokeWidth: 0.018, shadow: 'rgba(255,46,136,0.95)',
+    shadowBlur: 0.14, spacing: 0.01, lineHeight: 1.05, upper: false,
+    script: true,
+  },
+  // Vice Stripes: the chrome gradient with horizontal retro stripes cut
+  // into the letters (stripes: true). Same 3D extrude as Vice Chrome.
+  'vice-stripes': {
+    name: 'Vice Stripes', font: 'Bebas Neue', weight: 400, color: '#ffffff',
+    stroke: '#1a0b2e', strokeWidth: 0.028, shadow: 'rgba(0,229,255,0.55)',
+    shadowBlur: 0.03, spacing: 0.02, lineHeight: 0.92, upper: true,
+    chrome: true, stripes: true,
+  },
 };
 
 // Cast roles for the built-in sample photos, used for the cast-tag chips
@@ -85,9 +103,26 @@ export const CAST_ROLES = {
   'pier.jpg': 'THE ANGLER',
   'boulevard.jpg': 'THE DRIVER',
   'neon.jpg': 'THE NIGHT OWL',
+  'club.jpg': 'THE INSIDER',
+  'boss.jpg': 'THE BOSS',
+  'rider.jpg': 'THE RIDER',
 };
 export function tagForPhoto(name) {
   return CAST_ROLES[name] || '';
+}
+
+// Location/time stickers for the built-in sample photos, e.g. a white
+// tilted sticker reading "PIER NINE • 6:40 PM" on the panel.
+export const LOC_STICKERS = {
+  'pier.jpg': 'PIER NINE • 6:40 PM',
+  'boulevard.jpg': 'PALM ROW • GOLDEN HOUR',
+  'neon.jpg': 'NEON STRIP • 2 AM',
+  'club.jpg': 'CLUB VELVET • 1:15 AM',
+  'boss.jpg': 'ROOFTOP BAR • 9:05 PM',
+  'rider.jpg': 'COAST ROAD • SUNSET',
+};
+export function stickerForPhoto(name) {
+  return LOC_STICKERS[name] || '';
 }
 
 export function defaultState() {
@@ -99,6 +134,10 @@ export function defaultState() {
     title: 'SUNSET HEIST',
     subtitle: 'VICE COAST',
     support: 'A LAMON BAY STORY — ISSUE 01',
+    // Review quote strip above the title: five gold stars + a quote and
+    // the (fictional) paper that printed it.
+    quote: 'THE CITY NEVER SLEEPS',
+    quoteSource: 'THE VICE GAZETTE',
     typeStyle: 'vice-block',
     type: { sizeScale: 1.0, spacing: null, color: null, align: 'center', titleY: null },
     elements: {
@@ -108,6 +147,9 @@ export function defaultState() {
       // billing block, a pop-out hero that breaks its frame, a seal stamp
       // and slanted triptych dividers. All are real toggles in the editor.
       castTags: true, billing: true, popout: false, seal: true, slant: false,
+      // Round 2 density: review quote strip, barcode + COMING SOON strip,
+      // location/time stickers on the panels, starburst seal.
+      quote: true, barcode: true, stickers: true, starburst: true,
     },
     // One entry per panel of the current layout; photo = index into photos,
     // tag = the panel's cast role chip ('' hides it).

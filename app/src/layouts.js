@@ -1,4 +1,4 @@
-// VICEFRAME — the five original layouts. Each layout is a function of the canvas
+// VICEFRAME — the six original layouts. Each layout is a function of the canvas
 // size that returns panel rectangles (fractions of W/H) plus text zones. Layouts
 // are tuned per aspect class (square 1:1, portrait 4:5, wide 16:9) because the
 // same fractions do not preserve a composition across ratios.
@@ -37,17 +37,19 @@ function triptych(w, h) {
   const a = aspectOf(w, h);
   const g = GAP;
   const pw = (1 - 2 * g) / 3;
+  // Panels run almost to the bottom (0.94H) so the giant title overlaps
+  // the photos instead of sitting in a separate dark band below them.
   const panels = [0, 1, 2].map((i) => ({
-    x: i * (pw + g), y: a === 'wide' ? 0.06 : 0, w: pw, h: a === 'wide' ? 0.72 : 0.78,
+    x: i * (pw + g), y: a === 'wide' ? 0.02 : 0, w: pw, h: a === 'wide' ? 0.92 : 0.94,
   }));
   const text = {
-    title: { x: 0.04, y: 0.815, w: 0.92, align: 'center' },
-    subtitle: { x: 0.04, y: 0.785, w: 0.92, align: 'center' },
+    title: { x: 0.04, y: 0.76, w: 0.92, align: 'center' },
+    subtitle: { x: 0.04, y: 0.905, w: 0.92, align: 'center' },
     support: { x: 0.04, y: 0.955, w: 0.92, align: 'center' },
     location: { x: 0.04, y: 0.02, w: 0.5, align: 'left' },
   };
   if (a === 'wide') {
-    text.title.y = 0.815; text.subtitle.y = 0.785;
+    text.title.y = 0.76; text.subtitle.y = 0.905;
   }
   return { panels, text, sun: { x: 0.08, y: 0.06, r: 0.045 }, skylineY: 0.66 };
 }
@@ -79,7 +81,9 @@ function mosaic(w, h) {
     ];
   }
   const text = {
-    title: { x: 0.04, y: 0.845, w: 0.92, align: 'left' },
+    // The title zone stops at 0.84W so the wide left-aligned title never
+    // runs into the seal stamp at the right edge.
+    title: { x: 0.04, y: 0.845, w: 0.80, align: 'left' },
     subtitle: { x: 0.04, y: 0.805, w: 0.92, align: 'left' },
     support: { x: 0.04, y: 0.965, w: 0.92, align: 'left' },
     location: { x: 0.63, y: 0.03, w: 0.33, align: 'right' },
@@ -91,11 +95,12 @@ function mosaic(w, h) {
     text.location = { x: 0.47, y: 0.03, w: 0.50, align: 'left' };
   }
   if (a === 'portrait') {
-    // Text block sits low in the bottom band with the subtitle BELOW the
-    // title: the old subtitle at y 0.82 crossed any face in the bottom
-    // panel, and a face in that panel's upper half now clears the type.
-    text.title = { x: 0.04, y: 0.845, w: 0.92, align: 'left' };
-    text.subtitle = { x: 0.04, y: 0.95, w: 0.92, align: 'left' };
+    // Text block sits low in the bottom band with the subtitle ABOVE the
+    // title (a script kicker): the old subtitle below the title at y 0.95
+    // printed on top of the support line and COMING SOON, and a subtitle
+    // at y 0.82 would cross a face in the bottom panel — 0.78 clears it.
+    text.title = { x: 0.04, y: 0.845, w: 0.80, align: 'left' };
+    text.subtitle = { x: 0.04, y: 0.78, w: 0.92, align: 'left' };
     text.support = { x: 0.04, y: 0.972, w: 0.92, align: 'left' };
   }
   return { panels, text, sun: { x: 0.10, y: 0.06, r: 0.05 }, skylineY: 0.55 };
@@ -181,12 +186,57 @@ function editorial(w, h) {
   return { panels, text, sun: { x: 0.10, y: 0.06, r: 0.045 }, skylineY: 0.60 };
 }
 
-export const LAYOUT_FNS = { hero, triptych, mosaic, split, editorial };
+export const LAYOUT_FNS = { hero, triptych, mosaic, split, editorial, 'hero-mosaic': heroMosaic };
 
 export function getLayout(id, w, h) {
   return LAYOUT_FNS[id](w, h);
 }
 
 export function panelCount(id) {
-  return { hero: 1, triptych: 3, mosaic: 4, split: 3, editorial: 4 }[id];
+  return { hero: 1, triptych: 3, mosaic: 4, split: 3, editorial: 4, 'hero-mosaic': 7 }[id];
+}
+
+// Hero Mosaic: one big hero + six small panels, edge to edge with no empty
+// field. Square/wide: hero is a full-height left column, six panels in a
+// 2x3 grid on the right. Portrait: hero is a full-width top band, six
+// panels in a 3x2 grid below. The title overlaps the bottom of the panels
+// (title zone y ~0.70) and the script subtitle sits just below it.
+function heroMosaic(w, h) {
+  const a = aspectOf(w, h);
+  const g = GAP;
+  let panels;
+  if (a === 'portrait') {
+    const cw = (1 - 2 * g) / 3;
+    const rh = (1 - 0.43 - g) / 2;
+    panels = [
+      { x: 0, y: 0, w: 1, h: 0.42 },
+      { x: 0, y: 0.43, w: cw, h: rh },
+      { x: cw + g, y: 0.43, w: cw, h: rh },
+      { x: 2 * (cw + g), y: 0.43, w: cw, h: rh },
+      { x: 0, y: 0.43 + rh + g, w: cw, h: rh },
+      { x: cw + g, y: 0.43 + rh + g, w: cw, h: rh },
+      { x: 2 * (cw + g), y: 0.43 + rh + g, w: cw, h: rh },
+    ];
+  } else {
+    const hw = a === 'wide' ? 0.42 : 0.52;
+    const gx = hw + g;
+    const cw = (1 - gx - g) / 2;
+    const rh = (1 - 2 * g) / 3;
+    panels = [
+      { x: 0, y: 0, w: hw, h: 1 },
+      { x: gx, y: 0, w: cw, h: rh },
+      { x: gx + cw + g, y: 0, w: cw, h: rh },
+      { x: gx, y: rh + g, w: cw, h: rh },
+      { x: gx + cw + g, y: rh + g, w: cw, h: rh },
+      { x: gx, y: 2 * (rh + g), w: cw, h: rh },
+      { x: gx + cw + g, y: 2 * (rh + g), w: cw, h: rh },
+    ];
+  }
+  const text = {
+    title: { x: 0.03, y: a === 'portrait' ? 0.68 : 0.70, w: 0.94, align: 'center' },
+    subtitle: { x: 0.03, y: a === 'portrait' ? 0.835 : 0.845, w: 0.94, align: 'center' },
+    support: { x: 0.03, y: 0.955, w: 0.94, align: 'center' },
+    location: { x: 0.03, y: 0.02, w: 0.5, align: 'left' },
+  };
+  return { panels, text, sun: { x: 0.10, y: 0.06, r: 0.05 }, skylineY: 0.55 };
 }

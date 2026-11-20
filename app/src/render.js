@@ -4,12 +4,13 @@
 // you see is what the file holds.
 
 import { getLayout } from './layouts.js';
-import { TYPE_STYLES } from './state.js';
+import { TYPE_STYLES, stickerForPhoto } from './state.js';
 import { filterFor, applyTint, applyFinish } from './grade.js';
 import {
   drawSunDisc, drawPalm, drawSkyline, drawNeonAccents,
   drawFilmFrame, drawNumbering, drawLocationLabel,
   drawCastTag, drawBillingBlock, drawSeal,
+  drawQuoteStrip, drawBarcode, drawSticker, drawStarburstSeal,
 } from './elements.js';
 
 let fontsReadyPromise = null;
@@ -22,6 +23,7 @@ export function fontsReady() {
           document.fonts.load('600 40px Oswald'),
           document.fonts.load('400 40px Oswald'),
           document.fonts.load('300 40px Oswald'),
+          document.fonts.load('400 40px Pacifico'),
         ]);
         await document.fonts.ready;
       } catch (e) { /* fall back to system fonts if a vendored font fails */ }
@@ -48,21 +50,21 @@ export function drawPhotoCover(ctx, img, rect, panel) {
   ctx.drawImage(img, sx, sy, Math.min(vw, iw), Math.min(vh, ih), rect.x, rect.y, pw, ph);
 }
 
-const TITLE_H = { hero: 0.24, triptych: 0.14, mosaic: 0.12, split: 0.13, editorial: 0.10 };
+const TITLE_H = { hero: 0.24, triptych: 0.13, mosaic: 0.12, split: 0.13, editorial: 0.10, 'hero-mosaic': 0.13 };
 
 // How far the support line moves up when the billing block is on: 0.018H
 // — but only when the subtitle sits far enough above the support line to
-// leave room. In the portrait mosaic the subtitle (0.95) and support (0.972)
-// are already 0.022 apart, so shifting the support up would print the two
-// lines on top of each other; there the support stays put and the billing
-// block shrinks to its one essential line.
+// leave room (in layouts where the subtitle sits just above the support,
+// e.g. the old portrait-mosaic stack, the support stays put and the billing
+// block shrinks to its one essential line).
 function billingShift(layout) {
   return (layout.text.support.y - layout.text.subtitle.y) >= 0.035 ? 0.018 : 0;
 }
 
 // Which panel pops out of its frame when pop-out is on (triptych: the centre
-// panel; split: the hero panel). Other layouts ignore the pop-out toggle.
-const POP_PANEL = { triptych: 1, split: 0 };
+// panel; split: the hero panel; hero-mosaic: the hero panel). Other layouts
+// ignore the pop-out toggle.
+const POP_PANEL = { triptych: 1, split: 0, 'hero-mosaic': 0 };
 
 // Per-panel draw geometry: slant (triptych) turns panel rects into
 // parallelograms with diagonal dividers; pop-out expands one panel past its
@@ -77,6 +79,9 @@ function panelGeometry(p, i, W, H, state) {
       rect.y -= H * 0.028; rect.h += H * 0.045;
     } else if (state.layout === 'split') {
       rect.h += H * 0.030; // hero panel spills over the support panels below
+    } else if (state.layout === 'hero-mosaic') {
+      rect.x -= W * 0.008; rect.w += W * 0.016;
+      rect.y -= H * 0.020; rect.h += H * 0.035; // hero breaks its frame
     }
   }
   const slant = !!state.elements.slant && state.layout === 'triptych';
@@ -97,6 +102,12 @@ function tagAnchor(p, W, H, layout) {
   const tagH = size * 2.1;
   const titleTop = layout.text.title.y * H;
   if (rect.y + rect.h > titleTop - H * 0.02) {
+    // A panel whose top sits just above the title (hero-mosaic row 3) has
+    // no room for a top tag — the letters would cover it. Park it at the
+    // panel bottom, above the billing strip, instead.
+    if (rect.y > titleTop - H * 0.10 && rect.y < titleTop + H * 0.02) {
+      return { x: rect.x + W * 0.015, y: rect.y + rect.h - H * 0.075, align: 'left', size };
+    }
     const topY = rect.y + (rect.y === 0 && rect.w > W * 0.9 ? H * 0.075 : H * 0.018);
     return { x: rect.x + rect.w - W * 0.015, y: topY + tagH, align: 'right', size };
   }
@@ -123,6 +134,43 @@ function fitTitle(ctx, text, zoneW, maxSize, style) {
   return size;
 }
 
+// Vice Stripes: the chrome gradient with horizontal retro stripes cut into
+// the letters. Rendered on a scratch canvas (the stripes use source-atop,
+// which must not touch the photos underneath), then stamped onto the cover.
+function drawStripedTitle(ctx, title, tx, ty, size, style, textW) {
+  const tmp = document.createElement('canvas');
+  tmp.width = Math.max(2, Math.ceil(textW) + 4);
+  tmp.height = Math.ceil(size * 1.25);
+  const t = tmp.getContext('2d');
+  t.font = `${style.weight} ${size}px "${style.font}", sans-serif`;
+  if ('letterSpacing' in t) t.letterSpacing = `${(size * style.spacing).toFixed(1)}px`;
+  t.textAlign = 'left';
+  t.textBaseline = 'top';
+  const grad = t.createLinearGradient(0, 0, 0, size);
+  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(0.30, '#cfe9ff');
+  grad.addColorStop(0.55, '#ff9ecf');
+  grad.addColorStop(0.80, '#ff2e88');
+  grad.addColorStop(1, '#7b2fff');
+  t.fillStyle = grad;
+  t.fillText(title, 0, 0);
+  // Horizontal retro stripes over the letters only.
+  t.globalCompositeOperation = 'source-atop';
+  const bandH = size * 0.085;
+  const stripeCols = ['rgba(255,255,255,0.92)', 'rgba(255,46,136,0.85)', 'rgba(255,255,255,0.92)', 'rgba(123,47,255,0.85)'];
+  let y = size * 0.06;
+  let k = 0;
+  while (y < size) {
+    t.fillStyle = stripeCols[k % stripeCols.length];
+    t.fillRect(0, y, tmp.width, bandH * 0.55);
+    y += bandH;
+    k++;
+  }
+  ctx.save();
+  ctx.drawImage(tmp, tx, ty);
+  ctx.restore();
+}
+
 function drawTextBlock(ctx, W, H, state, layout, style) {
   const t = layout.text;
   const title = (state.title || '').trim().toUpperCase();
@@ -132,14 +180,27 @@ function drawTextBlock(ctx, W, H, state, layout, style) {
   const maxTitle = TITLE_H[state.layout] * H * (state.type.sizeScale || 1);
   const zoneX = t.title.x * W;
 
-  // A dark scrim behind the title so white type reads on any photo.
-  const scrimTop = t.title.y * H - H * 0.06;
-  const scrim = ctx.createLinearGradient(0, scrimTop, 0, H);
+  // A dark scrim ONLY behind the title block, so the type reads on any
+  // photo while the photos stay visible around it — no separate dark band
+  // below the panels. A second, thinner scrim guards the billing strip.
+  const titleH = TITLE_H[state.layout] * H * (state.type.sizeScale || 1);
+  const bandTop = t.title.y * H - H * 0.075;
+  const bandBot = t.title.y * H + titleH + H * 0.10;
+  const scrim = ctx.createLinearGradient(0, bandTop, 0, bandBot);
   scrim.addColorStop(0, 'rgba(12,2,28,0)');
-  scrim.addColorStop(1, 'rgba(12,2,28,0.62)');
+  scrim.addColorStop(0.18, 'rgba(12,2,28,0.55)');
+  scrim.addColorStop(0.75, 'rgba(12,2,28,0.55)');
+  scrim.addColorStop(1, 'rgba(12,2,28,0)');
   ctx.save();
   ctx.fillStyle = scrim;
-  ctx.fillRect(0, scrimTop, W, H - scrimTop);
+  ctx.fillRect(0, bandTop, W, bandBot - bandTop);
+  ctx.restore();
+  const strip = ctx.createLinearGradient(0, H * 0.925, 0, H);
+  strip.addColorStop(0, 'rgba(12,2,28,0)');
+  strip.addColorStop(1, 'rgba(12,2,28,0.6)');
+  ctx.save();
+  ctx.fillStyle = strip;
+  ctx.fillRect(0, H * 0.925, W, H * 0.075);
   ctx.restore();
 
   if (title) {
@@ -160,21 +221,37 @@ function drawTextBlock(ctx, W, H, state, layout, style) {
         ctx.fillStyle = cols[k];
         ctx.fillText(title, tx + size * s, ty + size * s);
       });
-      const grad = ctx.createLinearGradient(0, ty, 0, ty + size);
-      grad.addColorStop(0, '#ffffff');
-      grad.addColorStop(0.30, '#cfe9ff');
-      grad.addColorStop(0.55, '#ff9ecf');
-      grad.addColorStop(0.80, '#ff2e88');
-      grad.addColorStop(1, '#7b2fff');
-      ctx.fillStyle = grad;
-      ctx.shadowColor = 'rgba(0,229,255,0.6)';
-      ctx.shadowBlur = size * style.shadowBlur;
-      if (style.strokeWidth > 0) {
-        ctx.lineWidth = Math.max(1, size * style.strokeWidth);
-        ctx.strokeStyle = style.stroke;
-        ctx.strokeText(title, tx, ty);
+      if (style.stripes) {
+        // Vice Stripes: the gradient + retro stripes on a scratch canvas,
+        // then a dark outline stroked on top.
+        const textW = ctx.measureText(title).width;
+        const leftX = t.title.align === 'center' ? tx - textW / 2
+          : t.title.align === 'right' ? tx - textW : tx;
+        drawStripedTitle(ctx, title, leftX, ty, size, style, textW);
+        if (style.strokeWidth > 0) {
+          ctx.lineWidth = Math.max(1, size * style.strokeWidth);
+          ctx.strokeStyle = style.stroke;
+          ctx.shadowColor = 'rgba(0,229,255,0.6)';
+          ctx.shadowBlur = size * style.shadowBlur;
+          ctx.strokeText(title, tx, ty);
+        }
+      } else {
+        const grad = ctx.createLinearGradient(0, ty, 0, ty + size);
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(0.30, '#cfe9ff');
+        grad.addColorStop(0.55, '#ff9ecf');
+        grad.addColorStop(0.80, '#ff2e88');
+        grad.addColorStop(1, '#7b2fff');
+        ctx.fillStyle = grad;
+        ctx.shadowColor = 'rgba(0,229,255,0.6)';
+        ctx.shadowBlur = size * style.shadowBlur;
+        if (style.strokeWidth > 0) {
+          ctx.lineWidth = Math.max(1, size * style.strokeWidth);
+          ctx.strokeStyle = style.stroke;
+          ctx.strokeText(title, tx, ty);
+        }
+        ctx.fillText(title, tx, ty);
       }
-      ctx.fillText(title, tx, ty);
     } else {
       ctx.fillStyle = color;
       ctx.shadowColor = style.shadow;
@@ -190,20 +267,34 @@ function drawTextBlock(ctx, W, H, state, layout, style) {
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
   }
 
-  // Subtitle: Oswald caps with wide tracking, in the accent colour.
-  const sub = (state.subtitle || '').trim().toUpperCase();
+  // Subtitle: Oswald caps with wide tracking, in the accent colour — or,
+  // with the Vice Script style, a neon-pink script line (Pacifico, kept in
+  // the case it was typed, not uppercased) with a white outline.
+  const subRaw = (state.subtitle || '').trim();
+  const sub = style.script ? subRaw : subRaw.toUpperCase();
   if (sub) {
-    const size = Math.max(12, W * 0.022);
+    const size = style.script ? Math.max(14, W * 0.030) : Math.max(12, W * 0.022);
     ctx.save();
-    ctx.font = `600 ${size}px Oswald, sans-serif`;
-    if ('letterSpacing' in ctx) ctx.letterSpacing = `${(size * 0.32).toFixed(1)}px`;
+    if (style.script) {
+      ctx.font = `400 ${size}px Pacifico, cursive`;
+      if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+      ctx.fillStyle = '#ff9ecf';
+      ctx.shadowColor = 'rgba(255,46,136,0.95)';
+      ctx.shadowBlur = size * 0.5;
+      ctx.lineWidth = Math.max(1, size * 0.06);
+      ctx.strokeStyle = '#ffffff';
+    } else {
+      ctx.font = `600 ${size}px Oswald, sans-serif`;
+      if ('letterSpacing' in ctx) ctx.letterSpacing = `${(size * 0.32).toFixed(1)}px`;
+      ctx.fillStyle = '#ffd166';
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = size * 0.3;
+    }
     ctx.textAlign = t.subtitle.align;
     ctx.textBaseline = 'top';
-    ctx.fillStyle = '#ffd166';
-    ctx.shadowColor = 'rgba(0,0,0,0.6)';
-    ctx.shadowBlur = size * 0.3;
     const sx = t.subtitle.align === 'center' ? t.subtitle.x * W + t.subtitle.w * W / 2
       : t.subtitle.align === 'right' ? (t.subtitle.x + t.subtitle.w) * W : t.subtitle.x * W;
+    if (style.script) ctx.strokeText(sub, sx, t.subtitle.y * H);
     ctx.fillText(sub, sx, t.subtitle.y * H);
     ctx.restore();
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
@@ -337,6 +428,35 @@ export async function renderCover(canvas, state, opts = {}) {
   // Typography on top.
   drawTextBlock(ctx, W, H, state, layout, style);
 
+  // Review quote strip: five gold stars + a quote + the paper. Skipped
+  // when the title sits at the very top (editorial), where there is no room
+  // above it. Where it sits depends on the layout: above the title when the
+  // subtitle runs below it; above the subtitle when the subtitle is a
+  // kicker above the title (hero, split); higher still in hero-mosaic
+  // (row-2 bottom tags) and portrait mosaic (subtitle kicker + face).
+  if (el.quote && (state.quote || '').trim() && layout.text.title.y >= 0.15) {
+    const portrait = H > W * 1.1;
+    let quoteY;
+    if (state.layout === 'hero-mosaic' || (state.layout === 'mosaic' && portrait)) {
+      quoteY = layout.text.title.y - 0.10;
+    } else if (state.layout === 'mosaic') {
+      // Square mosaic: the subtitle kicker sits at 0.805 above the title
+      // and the bottom panel's face sits just below it, so the quote rides
+      // at the top of the bottom panel instead — clear of face, tag and
+      // sticker. (Wide mosaic keeps the default below-the-title spot.)
+      const square = Math.abs(W - H) < W * 0.1;
+      quoteY = square ? layout.panels[layout.panels.length - 1].y + 0.02
+        : layout.text.title.y - 0.062;
+    } else if (layout.text.subtitle.y < layout.text.title.y) {
+      quoteY = layout.text.subtitle.y - 0.05;
+    } else {
+      quoteY = layout.text.title.y - 0.062;
+    }
+    drawQuoteStrip(ctx, W, H, (state.quote || '').trim().toUpperCase(),
+      (state.quoteSource || '').trim().toUpperCase(),
+      quoteY * H);
+  }
+
   // Cast role tags: one chip per panel, anchored to the panel's own rect
   // (the layout rect, not the expanded pop-out rect) so it never lands on
   // the title. The popped panel's tag stays inside its original frame.
@@ -359,14 +479,46 @@ export async function renderCover(canvas, state, opts = {}) {
     const supY = layout.text.support.y - billingShift(layout);
     const twoLines = supY + 0.014 + 2 * 0.0135 < 0.995;
     const lines = twoLines ? ['VICEFRAME PICTURES PRESENTS', castLine] : [castLine];
-    const cx = el.seal ? W * 0.45 : W * 0.5;
-    drawBillingBlock(ctx, W, H, lines, cx, (supY + 0.014) * H, W * 0.82);
+    // Centred in the middle of the bottom strip: COMING SOON sits left and
+    // the barcode sits right, so the credits run narrower than before.
+    drawBillingBlock(ctx, W, H, lines, W * 0.50, (supY + 0.014) * H, W * 0.52);
   }
 
-  // Seal stamp, bottom-right corner.
+  // Barcode + COMING SOON strip: a deterministic ticket barcode bottom-right
+  // and the release line bottom-left, flanking the billing block.
+  if (el.barcode) {
+    drawBarcode(ctx, W * 0.865, H * 0.948, W * 0.105, H * 0.032, 2026);
+    ctx.save();
+    ctx.font = `600 ${Math.max(11, W * 0.014)}px Oswald, sans-serif`;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(255,46,136,0.9)';
+    ctx.shadowBlur = Math.max(4, W * 0.004);
+    if ('letterSpacing' in ctx) ctx.letterSpacing = `${(Math.max(11, W * 0.014) * 0.22).toFixed(1)}px`;
+    // Baseline 0.985H: the support line rides as high as 0.954H (portrait
+    // mosaic), so the old 0.972H baseline printed COMING SOON on top of it.
+    ctx.fillText('COMING SOON', W * 0.03, H * 0.985);
+    ctx.restore();
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+  }
+
+  // Seal stamp, overlapping the bottom-right panel corner above the
+  // billing strip (the barcode now owns the strip's right end).
   if (el.seal) {
     const r = Math.max(26, Math.min(W, H) * 0.042);
-    drawSeal(ctx, W * 0.925, H * 0.94, r);
+    drawSeal(ctx, W * 0.94, H * 0.885, r);
+  }
+  // Starburst seal: stamped over a panel seam, clear of the quote strip and
+  // of faces. Hero-mosaic's seam sits between the club and neon panels;
+  // other layouts use the right-hand panel's lower area.
+  const STAR_POS = {
+    hero: [0.885, 0.60], triptych: [0.885, 0.60], mosaic: [0.885, 0.60],
+    split: [0.885, 0.60], editorial: [0.885, 0.60], 'hero-mosaic': [0.545, 0.33],
+  };
+  if (el.starburst) {
+    const r = Math.max(26, Math.min(W, H) * 0.042);
+    const sp = STAR_POS[state.layout] || [0.885, 0.60];
+    drawStarburstSeal(ctx, W * sp[0], H * sp[1], r * 0.95);
   }
 
   // Labels, numbering, film frame.
@@ -385,6 +537,39 @@ export async function renderCover(canvas, state, opts = {}) {
     drawLocationLabel(ctx, layout.text.location.x * W, layout.text.location.y * H + Math.max(12, W * 0.016), Math.max(12, W * 0.016), 'NEON BAY · 26.1°N');
   }
   if (el.numbering) drawNumbering(ctx, W, H, '01');
+  // Location/time stickers: one white tilted sticker per panel, from the
+  // photo's sticker map. Top-right of the panel, unless the panel's cast
+  // tag already moved up there (then top-left); never over the global
+  // location label or the issue numbering.
+  if (el.stickers) {
+    const titleTop = layout.text.title.y * H;
+    layout.panels.forEach((p, i) => {
+      const name = state.photos[state.panels[i]?.photo]?.name || '';
+      const sticker = stickerForPhoto(name);
+      if (!sticker) return;
+      const rect = { x: p.x * W, y: p.y * H, w: p.w * W, h: p.h * H };
+      const tagIsTop = rect.y + rect.h > titleTop - H * 0.02;
+      const tagNearTitle = rect.y > titleTop - H * 0.10 && rect.y < titleTop + H * 0.02;
+      // The tag sits at the top only when it is not parked at the bottom
+      // near the title (hero-mosaic row 3) — then the top-right is free.
+      let align = tagIsTop && !tagNearTitle ? 'left' : 'right';
+      const hasLoc = rect.x < W * 0.06 + W * 0.2 && rect.x + rect.w > W * 0.06 && rect.y < H * 0.05 + H * 0.02 && rect.y + rect.h > H * 0.05;
+      const hasNum = rect.x < W * 0.97 && rect.x + rect.w > W * 0.97 && rect.y < H * 0.045 + H * 0.02 && rect.y + rect.h > H * 0.045;
+      if (hasLoc && align === 'left') align = 'right';
+      if (hasNum && align === 'right') align = 'left';
+      const sx = align === 'left' ? rect.x + W * 0.012 : rect.x + rect.w - W * 0.012;
+      // When the cast tag already owns the top-right corner (and the
+      // sticker ended up on the same side), park the sticker below the tag
+      // instead of painting over it.
+      const tagAtTopRight = tagIsTop && !tagNearTitle && align === 'right';
+      const tagSize = Math.max(11, W * 0.013);
+      const tagTopY = rect.y === 0 && rect.w > W * 0.9 ? H * 0.075 : H * 0.018;
+      const sy = tagAtTopRight
+        ? rect.y + tagTopY + tagSize * 2.1 + H * 0.008
+        : rect.y + H * 0.008;
+      drawSticker(ctx, sx, sy, align, sticker, Math.max(10, W * 0.011));
+    });
+  }
   if (el.filmFrame) drawFilmFrame(ctx, W, H);
 
   // Finish: vignette, grain, halftone.
