@@ -79,13 +79,16 @@ export function drawSkyline(ctx, x, y, w, h) {
     ctx.fillRect(bx, y + h - bh, bw, bh);
     // Antenna on every third tower.
     if (i % 3 === 1) ctx.fillRect(bx + bw / 2 - 1, y + h - bh - h * 0.16, 2, h * 0.16);
-    // Lit windows: a few warm dots.
-    ctx.fillStyle = 'rgba(255,190,90,0.9)';
+    // Lit windows: warm most of the time, cyan on some towers, so the
+    // strip reads as a busy lit coastline rather than a few dots.
     const rows = Math.max(1, Math.floor(bh / (h * 0.09)));
     for (let r = 0; r < rows; r++) {
-      if ((i * 7 + r * 3) % 4 === 0) {
-        ctx.fillRect(bx + bw * 0.2, y + h - bh + h * 0.06 + r * h * 0.09, bw * 0.22, h * 0.035);
-      }
+      const pick = (i * 7 + r * 3) % 3;
+      if (pick === 0) ctx.fillStyle = 'rgba(255,190,90,0.95)';
+      else if (pick === 1 && (i * 5 + r * 2) % 4 === 0) ctx.fillStyle = 'rgba(0,229,255,0.85)';
+      else continue;
+      ctx.fillRect(bx + bw * 0.2, y + h - bh + h * 0.06 + r * h * 0.09, bw * 0.22, h * 0.035);
+      if ((i + r) % 3 === 0) ctx.fillRect(bx + bw * 0.58, y + h - bh + h * 0.06 + r * h * 0.09, bw * 0.22, h * 0.035);
     }
     ctx.fillStyle = '#160a24';
     bx += bw + w * 0.012;
@@ -101,6 +104,8 @@ export function drawNeonAccents(ctx, w, h) {
   const lines = [
     { color: '#ff2e88', pts: [[w * 0.02, h * 0.30], [w * 0.02, h * 0.02], [w * 0.14, h * 0.02]] },
     { color: '#00e5ff', pts: [[w * 0.98, h * 0.70], [w * 0.98, h * 0.98], [w * 0.86, h * 0.98]] },
+    { color: '#ff2e88', pts: [[w * 0.02, h * 0.70], [w * 0.02, h * 0.98], [w * 0.14, h * 0.98]] },
+    { color: '#00e5ff', pts: [[w * 0.98, h * 0.30], [w * 0.98, h * 0.02], [w * 0.86, h * 0.02]] },
   ];
   for (const l of lines) {
     ctx.strokeStyle = l.color;
@@ -160,5 +165,113 @@ export function drawLocationLabel(ctx, x, y, size, text) {
   ctx.shadowColor = 'rgba(0,0,0,0.65)';
   ctx.shadowBlur = size * 0.35;
   ctx.fillText(text, x + size * 0.95, y);
+  ctx.restore();
+}
+
+// Cast role tag: a small dark pill with a gold edge, a pink dot and a short
+// gold rule trailing it, e.g. "THE ANGLER". (x, y) is the pill's bottom edge;
+// align 'left' grows the pill right from x, 'right' grows it left from x.
+export function drawCastTag(ctx, x, y, align, text, size) {
+  ctx.save();
+  ctx.font = `600 ${size}px Oswald, sans-serif`;
+  const tw = ctx.measureText(text).width;
+  const padX = size * 0.9;
+  const w = tw + padX * 2 + size * 0.9;
+  const h = size * 2.1;
+  const px = align === 'right' ? x - w : x;
+  const py = y - h;
+  ctx.fillStyle = 'rgba(10,2,24,0.78)';
+  ctx.strokeStyle = '#ffd166';
+  ctx.lineWidth = Math.max(1, size * 0.09);
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(px, py, w, h, h / 2); else ctx.rect(px, py, w, h);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ff2e88';
+  ctx.beginPath(); ctx.arc(px + padX + size * 0.28, py + h / 2, size * 0.26, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffd166';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, px + padX + size * 0.62, py + h / 2 + size * 0.04);
+  ctx.strokeStyle = 'rgba(255,209,102,0.9)';
+  ctx.lineWidth = Math.max(1, size * 0.08);
+  ctx.beginPath();
+  if (align === 'right') { ctx.moveTo(px - size * 1.6, py + h / 2); ctx.lineTo(px, py + h / 2); }
+  else { ctx.moveTo(px + w, py + h / 2); ctx.lineTo(px + w + size * 1.6, py + h / 2); }
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Movie-poster billing block: two lines of tiny tracked caps near the very
+// bottom of the cover. lines = [line1, line2]; y = top line's top edge;
+// cx = centre x, maxW = widest the lines may run.
+export function drawBillingBlock(ctx, W, H, lines, cx, y, maxW) {
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const sizes = [Math.max(9, W * 0.0115), Math.max(8, W * 0.010)];
+  const alphas = [0.92, 0.72];
+  const weights = [400, 300];
+  lines.forEach((line, i) => {
+    let size = sizes[i];
+    ctx.font = `${weights[i]} ${size}px Oswald, sans-serif`;
+    if ('letterSpacing' in ctx) ctx.letterSpacing = `${(size * 0.18).toFixed(1)}px`;
+    while (size > 7 && ctx.measureText(line).width > maxW) {
+      size -= 0.5;
+      ctx.font = `${weights[i]} ${size}px Oswald, sans-serif`;
+      if ('letterSpacing' in ctx) ctx.letterSpacing = `${(size * 0.18).toFixed(1)}px`;
+    }
+    ctx.fillStyle = `rgba(255,255,255,${alphas[i]})`;
+    ctx.shadowColor = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur = size * 0.3;
+    ctx.fillText(line, cx, y + i * size * 1.55);
+  });
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+  ctx.restore();
+}
+
+// Round "VICEFRAME • ORIGINAL •" stamp: double gold ring, circular text,
+// a five-point star and the VF monogram. Rotated slightly so it reads as a
+// stamp pressed onto the cover.
+export function drawSeal(ctx, cx, cy, r) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-0.21);
+  ctx.fillStyle = 'rgba(12,2,28,0.55)';
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#ffd166';
+  ctx.lineWidth = Math.max(1.5, r * 0.045);
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = Math.max(1, r * 0.02);
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.82, 0, Math.PI * 2); ctx.stroke();
+  // Circular text around the inner ring.
+  const text = 'VICEFRAME • ORIGINAL • EST. 2026 • ';
+  const size = r * 0.17;
+  ctx.font = `600 ${size}px Oswald, sans-serif`;
+  ctx.fillStyle = '#ffd166';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const ringR = r * 0.71;
+  let angle = -Math.PI / 2;
+  for (const ch of text) {
+    const w = ctx.measureText(ch).width;
+    const step = w / ringR;
+    angle += step / 2;
+    ctx.save();
+    ctx.rotate(angle);
+    ctx.fillText(ch, 0, -ringR);
+    ctx.restore();
+    angle += step / 2;
+  }
+  // Five-point star, slightly above centre.
+  ctx.fillStyle = '#ffd166';
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const rr = i % 2 === 0 ? r * 0.22 : r * 0.095;
+    const x = Math.cos(a) * rr; const y = -r * 0.14 + Math.sin(a) * rr;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath(); ctx.fill();
+  // VF monogram below the star.
+  ctx.font = `400 ${r * 0.42}px "Bebas Neue", sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('VF', 0, r * 0.30);
   ctx.restore();
 }

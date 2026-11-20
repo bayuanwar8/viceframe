@@ -54,6 +54,7 @@ export const GRADES = {
 };
 
 // Typography styles: font, colour, stroke, glow and tracking for the main title.
+// chrome: true draws a retro-chrome 3D title (gradient fill + stacked extrude).
 export const TYPE_STYLES = {
   'vice-block': {
     name: 'Vice Block', font: 'Bebas Neue', weight: 400, color: '#ffffff',
@@ -70,7 +71,24 @@ export const TYPE_STYLES = {
     stroke: '#1a0b2e', strokeWidth: 0.012, shadow: 'rgba(0,0,0,0.55)',
     shadowBlur: 0.05, spacing: 0.05, lineHeight: 1.05, upper: true,
   },
+  'vice-chrome': {
+    name: 'Vice Chrome', font: 'Bebas Neue', weight: 400, color: '#ffffff',
+    stroke: '#1a0b2e', strokeWidth: 0.028, shadow: 'rgba(0,229,255,0.55)',
+    shadowBlur: 0.03, spacing: 0.02, lineHeight: 0.92, upper: true,
+    chrome: true,
+  },
 };
+
+// Cast roles for the built-in sample photos, used for the cast-tag chips
+// on each panel. User-uploaded photos get no tag until the editor assigns one.
+export const CAST_ROLES = {
+  'pier.jpg': 'THE ANGLER',
+  'boulevard.jpg': 'THE DRIVER',
+  'neon.jpg': 'THE NIGHT OWL',
+};
+export function tagForPhoto(name) {
+  return CAST_ROLES[name] || '';
+}
 
 export function defaultState() {
   return {
@@ -86,9 +104,14 @@ export function defaultState() {
     elements: {
       sunDisc: true, palms: true, skyline: true, neon: true,
       filmFrame: false, numbering: true, location: true,
+      // Poster-density elements: cast role tags on every panel, a movie
+      // billing block, a pop-out hero that breaks its frame, a seal stamp
+      // and slanted triptych dividers. All are real toggles in the editor.
+      castTags: true, billing: true, popout: false, seal: true, slant: false,
     },
-    // One entry per panel of the current layout; photo = index into photos.
-    panels: [{ photo: 0, zoom: 1, dx: 0, dy: 0, fx: 0.5, fy: 0.35 }],
+    // One entry per panel of the current layout; photo = index into photos,
+    // tag = the panel's cast role chip ('' hides it).
+    panels: [{ photo: 0, zoom: 1, dx: 0, dy: 0, fx: 0.5, fy: 0.35, tag: 'THE ANGLER' }],
     selectedPanel: 0,
     // Photos are { id, name, img } and are NOT part of undo snapshots.
     photos: [],

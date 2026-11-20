@@ -23,12 +23,19 @@ browser — your photos never leave your machine.
   Miami Heat, Golden Hour, Tropical Noir, Electric Blue) plus manual controls:
   exposure, contrast, saturation, temperature, highlights, shadows, vignette,
   film grain and halftone. Changes show live in the preview.
-- **Typography Studio** — three original type styles (Vice Block, Neon Strip,
-  Editorial), editable title, subtitle and supporting text, title size,
+- **Typography Studio** — four original type styles (Vice Block, Neon Strip,
+  Editorial, Vice Chrome — a retro-chrome 3D title with a gradient fill and
+  stacked extrude), editable title, subtitle and supporting text, title size,
   alignment and colour, with stroke and glow built in.
-- **Original graphic elements** — a banded sunset disc, palm silhouettes, a
-  coastal skyline with lit windows, neon corner accents, a film-frame border,
-  issue numbering and a location label, all drawn in code.
+- **Original graphic elements** — a banded sunset disc, palm silhouettes and
+  palm clusters, a coastal skyline with lit windows, neon corner accents, a
+  film-frame border, issue numbering and a location label, all drawn in code.
+- **Poster density** — cast role tags on every panel (the sample photos star
+  THE ANGLER, THE DRIVER and THE NIGHT OWL), a movie billing block with the
+  credits at the bottom, a pop-out hero that breaks its frame with a soft
+  shadow and a neon edge, slanted triptych dividers, a VICEFRAME seal stamp,
+  and the Vice Chrome title style. Every one of them is a real toggle in the
+  editor, so a cover can be as clean or as busy as you want it.
 - **PNG export engine** — re-renders the cover at full resolution (never a
   screenshot of the preview) in 1080 x 1080, 1080 x 1350 and 1920 x 1080,
   one size at a time or all three in one click. Undo/redo included.
@@ -71,7 +78,8 @@ app/
     elements.js    graphic elements drawn in code
     shots.js       fixed ?shot= scenes for screenshots
 screenshots/        1-cover.jpg (the cover), 2-editor.jpg (the editor),
-                   3-cover.jpg (a second cover, another grade)
+                   3-cover.jpg (a second cover, another grade),
+                   4-cover.jpg (a third cover, Split Cinema)
 shots.json         the screenshot scenes and their sizes
 ```
 
@@ -94,4 +102,5 @@ shots.json         the screenshot scenes and their sizes
 
 `?shot=cover` shows a cover alone; `?shot=editor` shows the editor with a
 sample photo. Query params: `layout`, `grade`, `size`, `photo`, `caption`,
-`subtitle` — e.g. `?shot=cover&layout=triptych&grade=neon-after-dark&photo=pier&caption=NEON%20NIGHTS`.
+`subtitle`, `style`, `cast`, `billing`, `popout`, `seal`, `slant`, `tags` —
+e.g. `?shot=cover&layout=triptych&grade=neon-after-dark&photo=pier&caption=NEON%20NIGHTS&style=vice-chrome&cast=1&billing=1&popout=1&seal=1&slant=1`.

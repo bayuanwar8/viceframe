@@ -1,7 +1,7 @@
 // VICEFRAME — wires the editor: photos, layouts, grading, typography, graphic
 // elements, panel editing, undo/redo and the PNG export engine. The preview and
 // the export both call renderCover, so the file always matches the screen.
-import { defaultState, SIZES, LAYOUTS, GRADES, TYPE_STYLES, snapshot, restore } from './state.js';
+import { defaultState, SIZES, LAYOUTS, GRADES, TYPE_STYLES, tagForPhoto, snapshot, restore } from './state.js';
 import { getLayout, panelCount } from './layouts.js';
 import { renderCover, fontsReady } from './render.js';
 import { runShot } from './shots.js';
@@ -61,7 +61,7 @@ async function addPhotoFile(file) {
 }
 
 async function loadSamples() {
-  for (const [name, src] of [['pier.jpg', 'samples/pier.jpg'], ['boulevard.jpg', 'samples/boulevard.jpg']]) {
+  for (const [name, src] of [['pier.jpg', 'samples/pier.jpg'], ['boulevard.jpg', 'samples/boulevard.jpg'], ['neon.jpg', 'samples/neon.jpg']]) {
     try {
       const img = await loadImage(src);
       state.photos.push({ id: nextPhotoId++, name, img, src });
@@ -238,8 +238,16 @@ function wireTypeUI() {
 const ELEMENT_LABELS = {
   sunDisc: 'Sunset disc', palms: 'Palm silhouettes', skyline: 'Coastal skyline',
   neon: 'Neon accents', filmFrame: 'Film-frame border', numbering: 'Issue numbering',
-  location: 'Location label',
+  location: 'Location label', castTags: 'Cast role tags', billing: 'Billing block',
+  popout: 'Pop-out hero', seal: 'Seal / stamp', slant: 'Slanted panels',
 };
+
+// When a panel gets a new photo, its cast tag follows the photo's role.
+function assignPanelPhoto(idx, photoIdx) {
+  state.panels[idx].photo = photoIdx;
+  const name = state.photos[photoIdx]?.name || '';
+  state.panels[idx].tag = tagForPhoto(name);
+}
 
 function syncElementToggles() {
   const box = $('elementToggles');
@@ -267,7 +275,7 @@ function syncLibrary() {
     d.innerHTML = `<img src="${p.src}" alt="${p.name}"><span>${p.name}</span>`;
     d.addEventListener('click', () => {
       pushUndo();
-      state.panels[state.selectedPanel].photo = i;
+      assignPanelPhoto(state.selectedPanel, i);
       syncLibrary(); syncPanelPhotoSelect(); syncPanelThumbs(); render();
     });
     lib.appendChild(d);
@@ -471,7 +479,7 @@ function wireChrome() {
   $('btnExportAll').addEventListener('click', exportAll);
   $('panelPhoto').addEventListener('change', (e) => {
     pushUndo();
-    state.panels[state.selectedPanel].photo = Number(e.target.value);
+    assignPanelPhoto(state.selectedPanel, Number(e.target.value));
     syncLibrary(); syncPanelThumbs(); render();
   });
   $('panelZoom').addEventListener('input', (e) => {

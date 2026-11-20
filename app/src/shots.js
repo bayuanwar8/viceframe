@@ -2,7 +2,7 @@
 // at export size; ?shot=editor shows the full editor with a sample photo.
 // Query params: layout, grade, size, photo, caption, subtitle.
 // window.__shotReady is set once the scene is painted.
-import { GRADES, SIZES } from './state.js';
+import { GRADES, SIZES, TYPE_STYLES, tagForPhoto } from './state.js';
 import { panelCount } from './layouts.js';
 import { renderCover, fontsReady } from './render.js';
 
@@ -31,6 +31,21 @@ function applyQuery(state, query) {
   if (caption) state.title = caption;
   const subtitle = query.get('subtitle');
   if (subtitle) state.subtitle = subtitle;
+  // Type style: style=vice-chrome (must be a known style).
+  const style = query.get('style');
+  if (style && TYPE_STYLES[style]) state.typeStyle = style;
+  // Poster-density toggles: cast=1 billing=1 popout=1 seal=1 slant=1.
+  const flag = (name, key) => {
+    const v = query.get(name);
+    if (v === '1') state.elements[key] = true;
+    else if (v === '0') state.elements[key] = false;
+  };
+  flag('cast', 'castTags'); flag('billing', 'billing'); flag('popout', 'popout');
+  flag('seal', 'seal'); flag('slant', 'slant');
+  // Per-panel cast tags: tags=THE ANGLER;THE DRIVER;THE NIGHT OWL.
+  // Without it, tags follow each photo's role from the sample map.
+  const tags = query.get('tags');
+  state._shotTags = tags ? tags.split(';').map((s) => s.trim()) : null;
   // Per-panel photos: photos=pier,boulevard,pier (cycles if fewer than panels).
   const photos = query.get('photos');
   state._shotPhotos = photos ? photos.split(',').map((s) => s.trim()).filter(Boolean) : null;
@@ -65,6 +80,12 @@ export async function runShot(shot, query, state, render) {
       } catch (e) { idx = 0; }
     }
     state.panels[i].photo = idx;
+    const photoName = state.photos[idx]?.name || '';
+    if (state._shotTags) {
+      state.panels[i].tag = state._shotTags[i % state._shotTags.length] || '';
+    } else {
+      state.panels[i].tag = tagForPhoto(photoName);
+    }
     if (state._shotFocal) {
       const f = state._shotFocal[i % state._shotFocal.length];
       if (f && Number.isFinite(f.fx) && Number.isFinite(f.fy)) {

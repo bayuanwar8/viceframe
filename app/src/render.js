@@ -9,6 +9,7 @@ import { filterFor, applyTint, applyFinish } from './grade.js';
 import {
   drawSunDisc, drawPalm, drawSkyline, drawNeonAccents,
   drawFilmFrame, drawNumbering, drawLocationLabel,
+  drawCastTag, drawBillingBlock, drawSeal,
 } from './elements.js';
 
 let fontsReadyPromise = null;
@@ -49,6 +50,65 @@ export function drawPhotoCover(ctx, img, rect, panel) {
 
 const TITLE_H = { hero: 0.24, triptych: 0.14, mosaic: 0.12, split: 0.13, editorial: 0.10 };
 
+// How far the support line moves up when the billing block is on: 0.018H
+// — but only when the subtitle sits far enough above the support line to
+// leave room. In the portrait mosaic the subtitle (0.95) and support (0.972)
+// are already 0.022 apart, so shifting the support up would print the two
+// lines on top of each other; there the support stays put and the billing
+// block shrinks to its one essential line.
+function billingShift(layout) {
+  return (layout.text.support.y - layout.text.subtitle.y) >= 0.035 ? 0.018 : 0;
+}
+
+// Which panel pops out of its frame when pop-out is on (triptych: the centre
+// panel; split: the hero panel). Other layouts ignore the pop-out toggle.
+const POP_PANEL = { triptych: 1, split: 0 };
+
+// Per-panel draw geometry: slant (triptych) turns panel rects into
+// parallelograms with diagonal dividers; pop-out expands one panel past its
+// frame so it overlaps its neighbours. Returns { rect, poly, isPop } where
+// poly is the clip polygon (null = plain rect).
+function panelGeometry(p, i, W, H, state) {
+  const rect = { x: p.x * W, y: p.y * H, w: p.w * W, h: p.h * H };
+  const isPop = !!state.elements.popout && POP_PANEL[state.layout] === i;
+  if (isPop) {
+    if (state.layout === 'triptych') {
+      rect.x -= W * 0.010; rect.w += W * 0.020;
+      rect.y -= H * 0.028; rect.h += H * 0.045;
+    } else if (state.layout === 'split') {
+      rect.h += H * 0.030; // hero panel spills over the support panels below
+    }
+  }
+  const slant = !!state.elements.slant && state.layout === 'triptych';
+  const dx = slant ? W * 0.028 : 0;
+  const poly = slant ? [
+    [rect.x + dx, rect.y], [rect.x + rect.w + dx, rect.y],
+    [rect.x + rect.w - dx, rect.y + rect.h], [rect.x - dx, rect.y + rect.h],
+  ] : null;
+  return { rect, poly, isPop };
+}
+
+// Where a panel's cast tag sits. Bottom of the panel, unless the panel's
+// bottom runs into the title band — then the top of the panel, right-aligned
+// (and dropped below the issue numbering for full-width top panels).
+function tagAnchor(p, W, H, layout) {
+  const rect = { x: p.x * W, y: p.y * H, w: p.w * W, h: p.h * H };
+  const size = Math.max(11, W * 0.013);
+  const tagH = size * 2.1;
+  const titleTop = layout.text.title.y * H;
+  if (rect.y + rect.h > titleTop - H * 0.02) {
+    const topY = rect.y + (rect.y === 0 && rect.w > W * 0.9 ? H * 0.075 : H * 0.018);
+    return { x: rect.x + rect.w - W * 0.015, y: topY + tagH, align: 'right', size };
+  }
+  return { x: rect.x + W * 0.015, y: rect.y + rect.h - H * 0.012, align: 'left', size };
+}
+
+function tracePoly(ctx, poly) {
+  ctx.beginPath();
+  poly.forEach(([x, y], j) => { if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+  ctx.closePath();
+}
+
 function fitTitle(ctx, text, zoneW, maxSize, style) {
   let size = maxSize;
   const set = (s) => {
@@ -87,17 +147,45 @@ function drawTextBlock(ctx, W, H, state, layout, style) {
     ctx.save();
     ctx.textAlign = t.title.align;
     ctx.textBaseline = 'top';
-    ctx.fillStyle = color;
-    ctx.shadowColor = style.shadow;
-    ctx.shadowBlur = size * style.shadowBlur;
     const tx = t.title.align === 'center' ? zoneX + zoneW / 2
       : t.title.align === 'right' ? zoneX + zoneW : zoneX;
-    if (style.strokeWidth > 0) {
-      ctx.lineWidth = Math.max(1, size * style.strokeWidth);
-      ctx.strokeStyle = style.stroke;
-      ctx.strokeText(title, tx, t.title.y * H);
+    const ty = t.title.y * H;
+    if (style.chrome) {
+      // Vice Chrome: stacked dark extrude copies stepping down-right (the
+      // 3D depth), then a chrome gradient fill with a dark outline.
+      ctx.shadowBlur = 0;
+      const steps = [0.014, 0.026, 0.038];
+      const cols = ['#3d0a5c', '#2a0640', '#1a0b2e'];
+      steps.forEach((s, k) => {
+        ctx.fillStyle = cols[k];
+        ctx.fillText(title, tx + size * s, ty + size * s);
+      });
+      const grad = ctx.createLinearGradient(0, ty, 0, ty + size);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.30, '#cfe9ff');
+      grad.addColorStop(0.55, '#ff9ecf');
+      grad.addColorStop(0.80, '#ff2e88');
+      grad.addColorStop(1, '#7b2fff');
+      ctx.fillStyle = grad;
+      ctx.shadowColor = 'rgba(0,229,255,0.6)';
+      ctx.shadowBlur = size * style.shadowBlur;
+      if (style.strokeWidth > 0) {
+        ctx.lineWidth = Math.max(1, size * style.strokeWidth);
+        ctx.strokeStyle = style.stroke;
+        ctx.strokeText(title, tx, ty);
+      }
+      ctx.fillText(title, tx, ty);
+    } else {
+      ctx.fillStyle = color;
+      ctx.shadowColor = style.shadow;
+      ctx.shadowBlur = size * style.shadowBlur;
+      if (style.strokeWidth > 0) {
+        ctx.lineWidth = Math.max(1, size * style.strokeWidth);
+        ctx.strokeStyle = style.stroke;
+        ctx.strokeText(title, tx, ty);
+      }
+      ctx.fillText(title, tx, ty);
     }
-    ctx.fillText(title, tx, t.title.y * H);
     ctx.restore();
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
   }
@@ -121,7 +209,8 @@ function drawTextBlock(ctx, W, H, state, layout, style) {
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
   }
 
-  // Supporting line: small Oswald, white, low in the frame.
+  // Supporting line: small Oswald, white, low in the frame. When the
+  // billing block is on it moves up a touch to make room for the credits.
   const sup = (state.support || '').trim().toUpperCase();
   if (sup) {
     const size = Math.max(10, W * 0.013);
@@ -135,7 +224,8 @@ function drawTextBlock(ctx, W, H, state, layout, style) {
     ctx.shadowBlur = size * 0.3;
     const sx = t.support.align === 'center' ? t.support.x * W + t.support.w * W / 2
       : t.support.align === 'right' ? (t.support.x + t.support.w) * W : t.support.x * W;
-    ctx.fillText(sup, sx, t.support.y * H);
+    const supY = (t.support.y - (state.elements.billing ? billingShift(layout) : 0)) * H;
+    ctx.fillText(sup, sx, supY);
     ctx.restore();
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
   }
@@ -154,13 +244,35 @@ export async function renderCover(canvas, state, opts = {}) {
   ctx.fillStyle = '#160a24';
   ctx.fillRect(0, 0, W, H);
 
-  // Panels: photo + grade, clipped to each rect.
-  layout.panels.forEach((p, i) => {
-    const rect = { x: p.x * W, y: p.y * H, w: p.w * W, h: p.h * H };
+  // Panels: photo + grade, clipped to each rect (or slanted polygon).
+  // The pop-out panel is drawn last so it overlaps its neighbours.
+  const geoms = layout.panels.map((p, i) => panelGeometry(p, i, W, H, state));
+  const order = geoms.map((_, i) => i)
+    .sort((a, b) => (geoms[a].isPop ? 1 : 0) - (geoms[b].isPop ? 1 : 0));
+  for (const i of order) {
+    const { rect, poly, isPop } = geoms[i];
     const panel = state.panels[i] || { photo: 0, zoom: 1, dx: 0, dy: 0, fx: 0.5, fy: 0.35 };
     const photo = state.photos[panel.photo] || state.photos[0];
+    if (isPop) {
+      // Soft drop shadow under the popped panel: the polygon filled black
+      // on a scratch canvas, blurred, drawn a touch lower.
+      const sh = document.createElement('canvas');
+      sh.width = W; sh.height = H;
+      const sctx = sh.getContext('2d');
+      sctx.fillStyle = 'rgba(0,0,0,0.85)';
+      sctx.beginPath();
+      if (poly) tracePoly(sctx, poly); else sctx.rect(rect.x, rect.y, rect.w, rect.h);
+      sctx.fill();
+      ctx.save();
+      ctx.filter = 'blur(10px)';
+      ctx.globalAlpha = 0.75;
+      ctx.drawImage(sh, 0, H * 0.010);
+      ctx.restore();
+    }
     ctx.save();
-    ctx.beginPath(); ctx.rect(rect.x, rect.y, rect.w, rect.h); ctx.clip();
+    ctx.beginPath();
+    if (poly) tracePoly(ctx, poly); else ctx.rect(rect.x, rect.y, rect.w, rect.h);
+    ctx.clip();
     if (photo && photo.img) {
       ctx.filter = filterFor(g);
       drawPhotoCover(ctx, photo.img, rect, panel);
@@ -175,13 +287,24 @@ export async function renderCover(canvas, state, opts = {}) {
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     }
     ctx.restore();
-    // Thin editorial frame around each panel.
+    // Frame around each panel: glowing neon for the popped one, thin
+    // editorial white for the rest; slanted panels stroke the polygon.
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
-    ctx.lineWidth = Math.max(1, W * 0.0015);
-    ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+    if (isPop) {
+      ctx.strokeStyle = '#ff2e88';
+      ctx.shadowColor = '#ff2e88';
+      ctx.shadowBlur = Math.max(6, W * 0.012);
+      ctx.lineWidth = Math.max(3, W * 0.004);
+    } else {
+      ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+      ctx.lineWidth = Math.max(1, W * 0.0015);
+    }
+    ctx.beginPath();
+    if (poly) tracePoly(ctx, poly);
+    else ctx.rect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+    ctx.stroke();
     ctx.restore();
-  });
+  }
 
   // Graphic elements, drawn over the photos.
   if (el.sunDisc) {
@@ -191,20 +314,60 @@ export async function renderCover(canvas, state, opts = {}) {
     drawSunDisc(ctx, layout.sun.x * W, layout.sun.y * H, layout.sun.r * W);
     ctx.restore();
   }
-  // Skyline sits low, behind the title scrim, so it never cuts a face.
+  // Skyline sits low and DIMMED, behind the title scrim, so it never cuts
+  // a face or slices the subtitle/support/billing lines: the strip is short
+  // and half-transparent, a faint city backdrop under the credits.
   if (el.skyline) {
-    drawSkyline(ctx, 0, H * 0.90, W, H * 0.08);
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    drawSkyline(ctx, 0, H * 0.925, W, H * 0.055);
+    ctx.restore();
   }
   if (el.palms) {
     const ph = H * 0.14;
     drawPalm(ctx, W * 0.045, H * 0.995, ph, -0.10);
     drawPalm(ctx, W * 0.955, H * 0.995, ph * 0.85, 0.12);
+    // Palm clusters so the bottom edge reads as a grove, not two lone trees.
+    drawPalm(ctx, W * 0.115, H * 0.995, ph * 0.55, 0.08);
+    drawPalm(ctx, W * 0.84, H * 0.995, ph * 0.62, -0.06);
     if (state.layout === 'hero') drawPalm(ctx, W * 0.14, H * 0.995, ph * 0.6, 0.06);
   }
   if (el.neon) drawNeonAccents(ctx, W, H);
 
   // Typography on top.
   drawTextBlock(ctx, W, H, state, layout, style);
+
+  // Cast role tags: one chip per panel, anchored to the panel's own rect
+  // (the layout rect, not the expanded pop-out rect) so it never lands on
+  // the title. The popped panel's tag stays inside its original frame.
+  if (el.castTags) {
+    layout.panels.forEach((p, i) => {
+      const tag = (state.panels[i] && state.panels[i].tag) || '';
+      if (!tag) return;
+      const a = tagAnchor(p, W, H, layout);
+      drawCastTag(ctx, a.x, a.y, a.align, tag.toUpperCase(), a.size);
+    });
+  }
+
+  // Billing block: micro credits under the support line, starring the cast
+  // roles actually on the cover. Two lines when they fit before the bottom
+  // edge, otherwise just the cast line (the essential credit).
+  if (el.billing) {
+    const roles = [...new Set(state.panels.map((p) => (p.tag || '').trim()).filter(Boolean))];
+    const cast = roles.length ? roles.join('  ·  ') : 'THE ANGLER  ·  THE DRIVER  ·  THE NIGHT OWL';
+    const castLine = `${cast}  —  DIRECTED BY COLE MARLIN  ·  MUSIC BY NEON TIDE`;
+    const supY = layout.text.support.y - billingShift(layout);
+    const twoLines = supY + 0.014 + 2 * 0.0135 < 0.995;
+    const lines = twoLines ? ['VICEFRAME PICTURES PRESENTS', castLine] : [castLine];
+    const cx = el.seal ? W * 0.45 : W * 0.5;
+    drawBillingBlock(ctx, W, H, lines, cx, (supY + 0.014) * H, W * 0.82);
+  }
+
+  // Seal stamp, bottom-right corner.
+  if (el.seal) {
+    const r = Math.max(26, Math.min(W, H) * 0.042);
+    drawSeal(ctx, W * 0.925, H * 0.94, r);
+  }
 
   // Labels, numbering, film frame.
   if (el.location || el.numbering) {
