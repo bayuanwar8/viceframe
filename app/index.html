@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VICEFRAME — Cinematic Cover Studio</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">VICE<span>FRAME</span> <em>Cinematic Cover Studio</em></div>
+  <div class="top-actions">
+    <button id="btnNew" type="button">New</button>
+    <button id="btnUndo" type="button" disabled>Undo</button>
+    <button id="btnRedo" type="button" disabled>Redo</button>
+    <button id="btnReset" type="button">Reset</button>
+    <button id="btnExportTop" type="button" class="primary">Export PNG</button>
+  </div>
+</header>
+
+<div class="workspace">
+  <aside class="left">
+    <section class="panel" id="secPhotos">
+      <h2>Photos</h2>
+      <div id="dropzone" class="dropzone">Drop photos here or <label class="filelink">browse<input id="fileInput" type="file" accept="image/*" multiple hidden></label></div>
+      <div id="library" class="library"></div>
+      <p class="hint">Up to 6 photos. Click a photo to put it in the selected panel.</p>
+    </section>
+    <section class="panel" id="secLayout">
+      <h2>Layout</h2>
+      <div id="layoutList" class="layout-list"></div>
+    </section>
+    <section class="panel" id="secGrade">
+      <h2>Colour Grade</h2>
+      <div id="gradePresets" class="preset-list"></div>
+      <div id="gradeSliders" class="sliders"></div>
+    </section>
+    <section class="panel" id="secType">
+      <h2>Typography</h2>
+      <label>Style <select id="typeStyle"></select></label>
+      <label>Title <input id="inTitle" type="text" maxlength="48"></label>
+      <label>Subtitle <input id="inSubtitle" type="text" maxlength="48"></label>
+      <label>Supporting text <input id="inSupport" type="text" maxlength="64"></label>
+      <label>Title size <input id="typeSize" type="range" min="0.6" max="1.5" step="0.05" value="1"></label>
+      <label>Align <select id="typeAlign"><option value="left">Left</option><option value="center" selected>Center</option><option value="right">Right</option></select></label>
+      <label>Title colour <input id="typeColor" type="color" value="#ffffff"></label>
+    </section>
+    <section class="panel" id="secElements">
+      <h2>Graphic Elements</h2>
+      <div id="elementToggles" class="toggles"></div>
+    </section>
+  </aside>
+
+  <main class="center">
+    <div class="preview-wrap">
+      <canvas id="preview" width="1080" height="1080"></canvas>
+      <p class="hint">Click a panel to select it. Drag to move its photo, scroll to zoom, Alt+click to set its focal point.</p>
+    </div>
+    <div class="center-meta"><span id="sizeLabel">1080 x 1080</span><span id="layoutLabel">Cinematic Hero</span></div>
+  </main>
+
+  <aside class="right">
+    <section class="panel" id="secPanel">
+      <h2>Selected Panel</h2>
+      <label>Photo <select id="panelPhoto"></select></label>
+      <label>Zoom <input id="panelZoom" type="range" min="1" max="3" step="0.05" value="1"></label>
+      <div class="row">
+        <button id="btnFit" type="button">Fit photo</button>
+        <button id="btnFocal" type="button" aria-pressed="false">Set focal point</button>
+      </div>
+      <p class="hint">Focal point: turn it on, then click the photo where the subject is.</p>
+    </section>
+    <section class="panel" id="secLayers">
+      <h2>Layers</h2>
+      <ul id="layerList" class="layers"></ul>
+    </section>
+    <section class="panel" id="secExport">
+      <h2>Export</h2>
+      <div id="sizeRadios" class="radios"></div>
+      <button id="btnExport" type="button" class="primary wide">Export PNG</button>
+      <button id="btnExportAll" type="button" class="wide">Export all 3 sizes</button>
+      <p id="exportStatus" role="status">Ready.</p>
+    </section>
+  </aside>
+</div>
+
+<footer class="bottombar">
+  <div id="panelThumbs" class="panel-thumbs"></div>
+  <span id="selPhoto">Photo: —</span>
+  <span id="bottomSize">1080 x 1080</span>
+</footer>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
